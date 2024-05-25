@@ -63,8 +63,8 @@ class ATSHA204:
         time.sleep(.001)
 
     def send_command(self, opcode, param1, param2, data = bytes()):
-        assert(len(param1) == 1)
-        assert(len(param2) == 2)
+        param1 = param1.to_bytes(1, 'little')
+        param2 = param2.to_bytes(2, 'little')
         count = len(data) + 7 # count includes: count, opcode, param1, param2(2), crc(2)
         tx_data = bytes([count, opcode]) + param1 + param2 + data
         crc = self.calc_crc(tx_data)
@@ -82,9 +82,7 @@ class ATSHA204:
         return resp_data[1:-2]
     
     def SerNo(self):
-        param1 = bytes([0x80])
-        param2 = bytes(2)
-        self.send_command(self.READ, param1, param2)
+        self.send_command(self.READ, 0x80, 0)
         time.sleep(.004)
         resp = self.read_response(32)
         print(resp)
@@ -92,9 +90,7 @@ class ATSHA204:
         return sn
     
     def Random(self, mode = 1):
-        param1 = mode.to_bytes(1, 'little')
-        param2 = bytes(2)
-        self.send_command(self.RANDOM, param1, param2)
+        self.send_command(self.RANDOM, 1, 0)
         time.sleep(.050)
         resp = self.read_response(32)
         return resp
@@ -102,9 +98,7 @@ class ATSHA204:
     def Mac(self, mode, slotId, challenge = bytes()):
         assert(len(challenge) in [0, 32])
         assert(mode&1 == (len(challenge) == 0))
-        param1 = mode.to_bytes(1, 'little')
-        param2 = slotId.to_bytes(2, 'little')
-        self.send_command(self.MAC, param1, param2, challenge)
+        self.send_command(self.MAC, mode, slotId, challenge)
         time.sleep(.035)
         resp = self.read_response(32)
         return resp
@@ -112,9 +106,7 @@ class ATSHA204:
     def Nonce(self, mode, data):
         assert(len(data) in [20, 32])
         assert(mode&2 == (len(data)==32))
-        param1 = mode.to_bytes(1, 'little')
-        param2 = bytes(2)
-        self.send_command(self.NONCE, param1, param2, data)
+        self.send_command(self.NONCE, mode, 0, data)
         time.sleep(.060)
         resp = self.read_response(1 if mode == 3 else 32)
         return resp
@@ -129,28 +121,28 @@ def perform_capture(atsha):
     mac = atsha.Mac(0x01, 0)
     return int.from_bytes(sn, 'little'), ubinascii.hexlify(nonce), ubinascii.hexlify(mac)
 
-_captures = None
-_capfile = "/gchq.net.json"
+_cs = None
+_cf = "/gchq.net.json"
 
 def save_captures():
-    with open(_capfile, 'w') as f:
-        ujson.dump(_captures, f)
+    with open(_cf, 'w') as f:
+        ujson.dump(_cs, f)
     
 def load_captures():
-    global _captures
+    global _cs
     try:
-        with open(_capfile, 'r') as f:
-            _captures = ujson.load(f)
+        with open(_cf, 'r') as f:
+            _cs = ujson.load(f)
     except:
-        _captures = []
+        _cs = []
         save_captures()
-    if _captures is None:
-        _captures = []
+    if _cs is None:
+        _cs = []
 
 def save_capture(capture):
-    global _captures
+    global _cs
     load_captures()
-    _captures.append(capture)
+    _cs.append(capture)
     save_captures()
         
         
@@ -168,75 +160,56 @@ def roundtext(ctx, t, r, top=False, h=20):
         ctx.move_to(0,0)
         ctx.rotate(-w/2/r)
     ctx.restore()
-    
 
 class GCHQMarkerApp(App):
     def __init__(self, config=None):
         self.port = config
         self.animation_counter = 0
         self.atsha = ATSHA204(config.i2c)
-        self.has_app = False
-        self.message = "Capturing!"
-        self.top_message = "DO NOT EJECT"
+        self.b_msg = "Capturing!"
+        self.t_msg = "DO NOT EJECT"
         
     async def background_task(self):
         
         eventbus.emit(RequestForegroundPushEvent(self))
-        
-        try:
-            import apps.gchq_net
-            self.has_app = True
-        except:
-            self.state = "missing installed app"
-            print("missing main app")
+  
         capture = perform_capture(self.atsha)
         print(capture)
         save_capture(capture)
-        self.message = "Capture Saved"
-        self.top_message = "SAFE TO EJECT"
-        print(self.message)
+        self.b_msg = "Capture Saved"
+        self.t_msg = "SAFE TO EJECT"
+        print(self.b_msg)
         
         while True:
             await asyncio.sleep(3)
-            self.message = "Open companion app"
+            self.b_msg = "Open companion app"
             await asyncio.sleep(3)
-            self.message = "gchq.net/play"
+            self.b_msg = "gchq.net/play"
             
     def update(self, delta):
         self.animation_counter += delta/1000
-        pass
     
     def draw(self, ctx):
         self.draw_logo_animated(ctx)
 
     def draw_logo_animated(self, ctx):
         legw = .12
-        ctx.arc(0,0,150,0,2*math.pi,1)
-        ctx.rgba(0, 0, 0, 1)
-        ctx.fill()
-        ctx.arc(0, 0, 100, 0, 2*math.pi, 0)
-        ctx.rgba(1, 1, 1, 1)
-        ctx.fill()
-        ctx.arc(0, 0, 75, 0, 2*math.pi, 0)
-        ctx.rgba(0,0,0, 1)
-        ctx.fill()
+        pi=math.pi
+        rs = [(150, 0), (100, 1), (75, 0), (45, 1), (40, 0)]
+        for r,c in rs:
+          ctx.arc(0,0,r,0,2*pi,0)
+          ctx.rgba(c,c,c, 1)
+          ctx.fill()
         ctx.save()
-        ctx.rotate(self.animation_counter * math.pi / 3)
+        ctx.rotate(self.animation_counter * pi / 3)
         for i in range(3):
             ctx.begin_path()
-            ctx.arc(0, 0, 105, i*math.pi*2/3, (i+legw)*math.pi*2/3, 0)
-            ctx.arc(0, 0, 44, (i+legw)*math.pi*2/3, i*math.pi*2/3, -1)
+            ctx.arc(0, 0, 105, i*pi*2/3, (i+legw)*pi*2/3, 0)
+            ctx.arc(0, 0, 44, (i+legw)*pi*2/3, i*pi*2/3, -1)
             ctx.rgba(1, 1, 1, 1)
             ctx.fill()
         ctx.restore()
             
-        ctx.arc(0, 0, 45, 0, 2*math.pi, 0)
-        ctx.rgba(1, 1, 1, 1)
-        ctx.fill()
-            
-        ctx.arc(0, 0, 40, 0, 2*math.pi, 0)
-        ctx.rgba(0,0,0, 1)
-        ctx.fill()
 
         ps = [(-30, 5), (-20, 14), (-12, 5), (-5, 5), (5, 10), (12, 10), (20, 6)]
 
@@ -255,11 +228,7 @@ class GCHQMarkerApp(App):
         
         ctx.rgba(0,0,0,1)
         
-        roundtext(ctx,self.message, 97, False)
-        roundtext(ctx,self.top_message, 97, True)
-
-        
+        roundtext(ctx,self.b_msg, 97, False)
+        roundtext(ctx,self.t_msg, 97, True)
 
 __app_export__ = GCHQMarkerApp
-
-
