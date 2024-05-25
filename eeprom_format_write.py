@@ -5,9 +5,6 @@ from machine import I2C
 
 from system.hexpansion.util import *
 
-
-
-
 BLS0 = (0x5a, 0, (1<<0))
 BLS1 = (0x5a, 0, (1<<1))
 
@@ -18,7 +15,11 @@ tildagonos.system_i2c.writeto_mem(0x5a, 0x04, bytes([0xc8, 0xff]))
 tildagonos.set_egpio_pin(LED, 0)
 tildagonos.set_egpio_pin(WR, 0)
 
-if False:
+# PLUG INTO PORT2 OPPOSITE BUTTONS
+
+do_format = False
+
+if do_format:
     # Set up i2c
     port = 2  # <<-- Customize!!
     i2c = I2C(port)
