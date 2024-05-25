@@ -189,14 +189,10 @@ class GCHQMarkerApp(App):
         except:
             self.state = "missing installed app"
             print("missing main app")
-        #print(get_account_otp())
         capture = perform_capture(self.atsha)
         print(capture)
-        if not wlan.isconnected() or not submit_capture(capture):
-            save_capture(capture)
-            self.message = "Capture Saved"
-        else:
-            self.message = "Capture submitted"
+        save_capture(capture)
+        self.message = "Capture Saved"
         self.top_message = "SAFE TO EJECT"
         print(self.message)
         
