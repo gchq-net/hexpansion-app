@@ -1,0 +1,31 @@
+name: Build EEPROM Image
+on: [push]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+    - uses: actions/checkout@v2
+      with:
+        repository: 'emfcamp/badge-2024-software'
+        path: 'badge-2024-software'
+        submodules: 'true'
+    - uses: actions/checkout@v2
+      with:
+        repository: 'Jason2866/mklittlefs_esp32 '
+        path: 'mklittlefs'
+        submodules: 'true'
+    - name: Build mpy-cross
+      run: make -C badge-2024-software/micropython/mpy-cross
+    - name: Build mklittlefs
+      run: make -C mklittlefs
+    - name: build MPY files
+      run: PATH=${{github.workspace}}/badge-2024-software/micropython/mpy-cross/build badge-2024-software/tools/mpy_cross_all.py eeprom --out mpy_files
+    - name: Build EEPROM Image
+      run: mklittlefs/mklittlefs -c mpy_files --page 32 --block 512 --size $((512*7)) -o eeprom.bin
+    - name: Upload EEPROM Image
+      uses: actions/upload-artifact@v2
+      with:
+        name: eeprom
+        path: eeprom.bin
