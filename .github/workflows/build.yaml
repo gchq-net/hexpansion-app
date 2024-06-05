@@ -21,7 +21,7 @@ jobs:
     - name: Build mklittlefs
       run: make -C mklittlefs
     - name: build MPY files
-      run: PATH=${{github.workspace}}/badge-2024-software/micropython/mpy-cross/build badge-2024-software/tools/mpy_cross_all.py eeprom --out mpy_files
+      run: PATH=${{github.workspace}}/badge-2024-software/micropython/mpy-cross/build badge-2024-software/micropython/tools/mpy_cross_all.py eeprom --out mpy_files
     - name: Build EEPROM Image
       run: mklittlefs/mklittlefs -c mpy_files --page 32 --block 512 --size $((512*7)) -o eeprom.bin
     - name: Upload EEPROM Image
