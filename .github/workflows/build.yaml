@@ -19,6 +19,8 @@ jobs:
     - uses: actions/setup-python@v5
       with:
         python-version: '3.x'
+    - name: install python3
+      run: sudo apt-get install python3
     - name: Build mpy-cross
       run: make -C badge-2024-software/micropython/mpy-cross
     - name: Build mklittlefs
